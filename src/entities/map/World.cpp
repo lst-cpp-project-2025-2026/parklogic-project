@@ -1,0 +1,101 @@
+#include "entities/map/World.hpp"
+#include "config.hpp"
+#include "core/AssetManager.hpp"
+#include "core/Logger.hpp"
+#include "raylib.h"
+#include <cmath>
+
+/**
+ * @file World.cpp
+ * @brief Implementation of the World entity.
+ *
+ * Handles background rendering (tiling) and global map visualization (grid, overlay).
+ */
+
+World::World(float width, float height) : width(width), height(height), showGrid(false) {
+  tileTextures = {"grass1", "grass2", "grass3", "grass4"};
+
+  // Calculate Tile Size in Meters
+  // BACKGROUND_TILE_SIZE art pixels per tile
+  // ART_PIXELS_PER_METER = 7
+  float artPixelsPerTile = static_cast<float>(Config::BACKGROUND_TILE_SIZE);
+  tileWidthMeter = artPixelsPerTile / static_cast<float>(Config::ART_PIXELS_PER_METER);
+  tileHeightMeter = tileWidthMeter;
+
+  // Generate Tile Map
+  int cols = std::ceil(width / tileWidthMeter);
+  int rows = std::ceil(height / tileHeightMeter);
+
+  backgroundTiles.resize(rows, std::vector<int>(cols));
+
+  for (int y = 0; y < rows; ++y) {
+    for (int x = 0; x < cols; ++x) {
+      backgroundTiles[y][x] = GetRandomValue(0, tileTextures.size() - 1);
+    }
+  }
+
+  Logger::Info("World initialized with {}x{} background tiles.", cols, rows);
+}
+
+void World::update(double /*dt*/) {
+  // World update logic (if any)
+}
+
+void World::draw() {
+  // Draw Background Tiles
+  auto &AM = AssetManager::Get();
+
+  for (size_t y = 0; y < backgroundTiles.size(); ++y) {
+    for (size_t x = 0; x < backgroundTiles[y].size(); ++x) {
+      int tileIndex = backgroundTiles[y][x];
+      Texture2D tex = AM.GetTexture(tileTextures[tileIndex]);
+
+      Rectangle source = {0, 0, (float)tex.width, (float)tex.height};
+      Rectangle dest = {x * tileWidthMeter, y * tileHeightMeter, tileWidthMeter, tileHeightMeter};
+      Vector2 origin = {0, 0};
+
+      DrawTexturePro(tex, source, dest, origin, 0.0f, WHITE);
+    }
+  }
+}
+
+void World::drawOverlay() {
+  // Draw World Boundary (in Meters)
+  // User wanted this over everything
+  DrawRectangleLinesEx({0, 0, width, height}, 0.1f, BLACK);
+
+  // Draw Grid
+  if (showGrid) {
+    // Grid lines every 1 meter
+    float spacing = 1.0f;
+
+    for (float x = 0; x <= width; x += spacing) {
+      DrawLineV({x, 0}, {x, height}, Fade(LIGHTGRAY, 0.3f));
+    }
+    for (float y = 0; y <= height; y += spacing) {
+      DrawLineV({0, y}, {width, y}, Fade(LIGHTGRAY, 0.3f));
+    }
+  }
+}
+
+void World::drawMask() {
+  // Draw 4 rectangles to cover everything outside [0, 0, width, height]
+  // Color: Dark Gray/Black
+  Color maskColor = {20, 20, 20, 255};
+
+  // We want to cover a large area.
+  // Let's assume a safe large margin, e.g. 10000 meters.
+  float hugeMargin = 10000.0f;
+
+  // Top
+  DrawRectangleRec({-hugeMargin, -hugeMargin, width + 2 * hugeMargin, hugeMargin}, maskColor);
+
+  // Bottom
+  DrawRectangleRec({-hugeMargin, height, width + 2 * hugeMargin, hugeMargin}, maskColor);
+
+  // Left
+  DrawRectangleRec({-hugeMargin, 0, hugeMargin, height}, maskColor);
+
+  // Right
+  DrawRectangleRec({width, 0, hugeMargin, height}, maskColor);
+}
